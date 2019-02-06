@@ -3,6 +3,7 @@ class WorkerPool {
     this.poolSize = size;
     this.taskQueue = [];
     this.workerQueue = [];
+    this.init();
   }
   init() {
     for (let i = 0; i < this.poolSize; i++) {
@@ -32,10 +33,6 @@ class WorkerPool {
 }
 
 class WorkerThread {
-  callback(e) {
-    this.workerTask.callback(e);
-    this.pool.releaseWorkerThread(this);
-  }
   constructor(pool) {
     this.pool = pool;
     this.workerTask = {};
@@ -48,6 +45,11 @@ class WorkerThread {
         worker.postMessage(workerTask.message);
       }
     };
+    this.callback = this.callback.bind(this);
+  }
+  callback(e) {
+    this.workerTask.callback(e);
+    this.pool.releaseWorkerThread(this);
   }
 }
 

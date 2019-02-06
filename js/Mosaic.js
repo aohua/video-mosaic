@@ -3,12 +3,22 @@ class Mosaic {
   constructor(tile = { width: 20, height: 20 }) {
     this.tile = tile;
   }
-  createMosaic(originalImage) {
-    const { context, width, height } = originalImage;
-    const originalImageData = context.getImageData(0, 0, width, height).data;
+  async createMosaic(originalImage, useWoker) {
+    const { width, height } = originalImage;
     this.numberOfTileX = Math.floor(width / this.tile.width);
     this.numberOfTileY = Math.floor(height / this.tile.height);
+    let colors = {};
+    if (window.Worker && useWoker) {
+      colors = await this.calculateColorsWithWorker(originalImage);
+    } else {
+      colors = this.calculateColorsWithoutWorker(originalImage);
+    }
+    return colors;
+  }
+  calculateColorsWithoutWorker(originalImage) {
     const colors = {};
+    const { context, width, height } = originalImage;
+    const originalImageData = context.getImageData(0, 0, width, height).data;
     for (let i = 0; i < this.numberOfTileY; i++) {
         const rowData = [];
         const originalRowData = this.getTilesByRow(originalImageData, i);
@@ -19,6 +29,24 @@ class Mosaic {
         }
         colors[i] = rowData;
     }
+    return colors;
+  }
+  async calculateColorsWithWorker(originalImage) {
+    const workerPool = new WorkerPool();
+    const { context, width, height } = originalImage;
+    const originalImageData = context.getImageData(0, 0, width, height).data;
+    const averageColorPromise = new Promise(resolve => {
+      const averageColorTask = new WorkerTask('./workers/getAverageColor.js', {
+        originalImageData,
+        numberOfTileX: this.numberOfTileX,
+        numberOfTileY: this.numberOfTileY,
+        tile: this.tile,
+      }, (colors) => {
+        resolve(colors.data);
+      });
+      workerPool.addTask(averageColorTask);
+    });
+    const colors = await averageColorPromise;
     return colors;
   }
   getTilesByRow(originalImageData, row) {
